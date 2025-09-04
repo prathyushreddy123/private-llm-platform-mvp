@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  ollama:
+    # Production-specific settings for Ollama
+    environment:
+      - OLLAMA_MODEL=mixtral:8x7b  # Use larger model for production
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+          cpus: '4'
+        reservations:
+          memory: 8G
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  streamlit:
+    # Production-specific settings for Streamlit
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.prod
+    command: streamlit run app.py --server.enableCORS=true --server.enableXsrfProtection=true
+    volumes:
+      - streamlit-data:/app/data
+    environment:
+      - STREAMLIT_SERVER_ENABLE_STATIC_SERVING=true
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+        restart_policy:
+          condition: any
+          delay: 5s
+          max_attempts: 3
+          window: 120s
+
+  postgres:
+    # Production-specific settings for PostgreSQL
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        restart_policy:
+          condition: any
+          delay: 5s
+          max_attempts: 3
+          window: 120s
+    environment:
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+    secrets:
+      - postgres_password
+
+  pgbouncer:
+    # Production-specific settings for PgBouncer
+    environment:
+      - POSTGRESQL_PASSWORD_FILE=/run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  chroma:
+    # Production-specific settings for ChromaDB
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        restart_policy:
+          condition: any
+          delay: 5s
+          max_attempts: 3
+          window: 120s
+    environment:
+      - CHROMA_SERVER_AUTH_CREDENTIALS_FILE=/run/secrets/chroma_auth
+    secrets:
+      - chroma_auth
+
+  n8n:
+    # Production-specific settings for n8n
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        restart_policy:
+          condition: any
+          delay: 5s
+          max_attempts: 3
+          window: 120s
+    environment:
+      - DB_POSTGRESDB_PASSWORD_FILE=/run/secrets/postgres_password
+      - N8N_ENCRYPTION_KEY_FILE=/run/secrets/n8n_encryption_key
+    secrets:
+      - postgres_password
+      - n8n_encryption_key
+
+  redis:
+    # Production-specific settings for Redis
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 2.5G
+          cpus: '1'
+        restart_policy:
+          condition: any
+          delay: 5s
+          max_attempts: 3
+          window: 120s
+
+# Use Docker secrets for sensitive data in production
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  chroma_auth:
+    file: ./secrets/chroma_auth.json
+  n8n_encryption_key:
+    file: ./secrets/n8n_encryption_key.txt
+
+volumes:
+  # Use managed volumes in production for better performance and management
+  streamlit-data:
+    driver: local

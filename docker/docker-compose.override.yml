@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  ollama:
+    # Development-specific settings for Ollama
+    environment:
+      - OLLAMA_DEBUG=true
+      - OLLAMA_MODEL=mistral:7b  # Use smaller model for development
+
+  streamlit:
+    # Development-specific settings for Streamlit
+    command: streamlit run app.py --server.runOnSave=true --server.enableCORS=false --server.enableXsrfProtection=false
+    volumes:
+      - ../frontend:/app
+    environment:
+      - STREAMLIT_DEBUG=true
+      - STREAMLIT_SERVER_ENABLE_STATIC_SERVING=true
+      - WATCHDOG_TIMEOUT=60
+    
+  postgres:
+    # Development-specific settings for PostgreSQL
+    ports:
+      - "5432:5432"  # Expose PostgreSQL port for direct access in development
+    
+  chroma:
+    # Development-specific settings for ChromaDB
+    command: --host=0.0.0.0 --port=8000 --log-level=DEBUG
+    
+  n8n:
+    # Development-specific settings for n8n
+    environment:
+      - N8N_DEV_MODE=true
+      - EXECUTIONS_PROCESS=main
+      - N8N_LOG_LEVEL=debug
+
+volumes:
+  # Use named volumes with local paths for easier development access
+  chroma-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/chroma
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/postgres
+  n8n-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/n8n
