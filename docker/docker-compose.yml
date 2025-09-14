@@ -173,8 +173,8 @@ services:
 
   streamlit:
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ../
+      dockerfile: frontend/Dockerfile
     container_name: llm-platform-streamlit
     ports:
       - "8501:8501"
