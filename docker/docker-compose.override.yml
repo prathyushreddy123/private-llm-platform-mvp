@@ -32,7 +32,6 @@ services:
       - N8N_DEV_MODE=true
       - EXECUTIONS_PROCESS=main
       - N8N_LOG_LEVEL=debug
-
 volumes:
   # Use named volumes with local paths for easier development access
   chroma-data:
@@ -53,3 +52,4 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/data/n8n
+

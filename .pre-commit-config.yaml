@@ -67,3 +67,4 @@ repos:
         language: system
         files: ^docker/\.env\.example$
         pass_filenames: false
+

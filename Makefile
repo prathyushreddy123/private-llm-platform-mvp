@@ -185,3 +185,4 @@ create-env:
 		cp docker/.env.example $(ENV_FILE); \
 		echo "$(ENV_FILE) created. Please edit it with your configuration."; \
 	fi
+

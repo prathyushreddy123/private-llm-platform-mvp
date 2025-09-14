@@ -209,7 +209,6 @@ networks:
   default:
     name: llm-platform-network
     driver: bridge
-
 volumes:
   ollama-data:
     driver: local
@@ -227,3 +226,4 @@ volumes:
     driver: local
   redis-data:
     driver: local
+
