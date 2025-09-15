@@ -1,9 +1,9 @@
 # Makefile for Private LLM Platform
 
 # Variables
-DOCKER_COMPOSE = docker-compose -f docker/docker-compose.yml
-DOCKER_COMPOSE_DEV = docker-compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml
-DOCKER_COMPOSE_PROD = docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml
+DOCKER_COMPOSE = docker compose -f docker/docker-compose.yml
+DOCKER_COMPOSE_DEV = docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml
+DOCKER_COMPOSE_PROD = docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml
 ENV_FILE = docker/.env
 
 # Default target
