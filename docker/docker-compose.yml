@@ -5,36 +5,16 @@ services:
     image: ollama/ollama:latest
     container_name: llm-platform-ollama
     volumes:
-      - ollama-data:/root/.ollama
+      - /mnt/legal/data/ollama:/root/.ollama
     ports:
       - "11434:11434"
-    deploy:
-      resources:
-        limits:
-          memory: 8G
-        reservations:
-          memory: 4G
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      com.llm-platform.service: "ollama"
-      com.llm-platform.component: "inference"
 
   chroma:
     image: chromadb/chroma:latest
     container_name: llm-platform-chroma
     volumes:
-      - chroma-data:/chroma/data
+      - /mnt/legal/data/chroma:/chroma/data
     ports:
       - "8000:8000"
     environment:
@@ -42,44 +22,18 @@ services:
       - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=chromadb.auth.token.TokenAuthCredentialsProvider
       - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token.TokenAuthServerProvider
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      com.llm-platform.service: "chroma"
-      com.llm-platform.component: "vector-store"
 
   postgres:
     image: postgres:15-alpine
     container_name: llm-platform-postgres
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - postgres-backup:/backups
+      - /mnt/legal/data/postgres:/var/lib/postgresql/data
+      - /mnt/legal/data/postgres-backup:/backups
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_DB=${POSTGRES_DB}
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      com.llm-platform.service: "postgres"
-      com.llm-platform.component: "database"
 
   pgbouncer:
     image: bitnami/pgbouncer:latest
@@ -98,19 +52,6 @@ services:
     depends_on:
       - postgres
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "6432"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      com.llm-platform.service: "pgbouncer"
-      com.llm-platform.component: "connection-pooling"
 
   n8n:
     image: n8nio/n8n:latest
@@ -125,51 +66,20 @@ services:
       - DB_POSTGRESDB_USER=${POSTGRES_USER}
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
       - DB_POSTGRESDB_SCHEMA=${N8N_DB_SCHEMA}
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
-      - GENERIC_TIMEZONE=${TIMEZONE}
-      - N8N_PATH=/
-      - N8N_DIAGNOSTICS_ENABLED=false
-      - N8N_CUSTOM_EXTENSIONS=/custom-extensions
     volumes:
-      - n8n-data:/home/node/.n8n
+      - /mnt/legal/data/n8n:/home/node/.n8n
       - ./n8n/custom-extensions:/custom-extensions
     depends_on:
       - pgbouncer
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      com.llm-platform.service: "n8n"
-      com.llm-platform.component: "workflow-automation"
 
   redis:
     image: redis:7-alpine
     container_name: llm-platform-redis
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
-      - redis-data:/data
+      - /mnt/legal/data/redis:/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      com.llm-platform.service: "redis"
-      com.llm-platform.component: "cache"
 
   streamlit:
     build:
@@ -191,39 +101,8 @@ services:
       - n8n
       - redis
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    labels:
-      com.llm-platform.service: "streamlit"
-      com.llm-platform.component: "frontend"
 
 networks:
   default:
     name: llm-platform-network
     driver: bridge
-volumes:
-  ollama-data:
-    driver: local
-  chroma-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/data/chroma
-  postgres-data:
-    driver: local
-  postgres-backup:
-    driver: local
-  n8n-data:
-    driver: local
-  redis-data:
-    driver: local
-
