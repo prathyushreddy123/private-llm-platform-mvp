@@ -53,7 +53,7 @@ check-env:
 .PHONY: up
 up: check-env
 	@echo "Starting services in development mode..."
-	@cd docker && $(DOCKER_COMPOSE_DEV) up -d
+	@cd docker && $(DOCKER_COMPOSE) up -d
 	@echo "Services are starting. View logs with 'make logs'"
 
 .PHONY: down
