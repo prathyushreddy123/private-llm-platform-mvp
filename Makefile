@@ -115,17 +115,16 @@ backup: check-env
 .PHONY: init-db
 init-db: check-env
 	@echo "Initializing databases..."
-	@cd docker && $(DOCKER_COMPOSE) exec -T postgres psql -U $$(grep POSTGRES_USER .env | cut -d '=' -f2) -d postgres <<'EOSQL'
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'llm_n8n') THEN
-        CREATE DATABASE llm_n8n;
-    END IF;
-END
-$$;
-EOSQL
+	@cd docker && echo "\
+	DO \$\$ \
+	BEGIN \
+	    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'llm_n8n') THEN \
+	        CREATE DATABASE llm_n8n; \
+	    END IF; \
+	END \
+	\$\$;" \
+	| $(DOCKER_COMPOSE) exec -T postgres psql -U $$(grep POSTGRES_USER .env | cut -d '=' -f2) -d postgres -v ON_ERROR_STOP=1
 	@echo "Database llm_n8n ensured."
-
 
 ## Restore from backup
 .PHONY: restore
