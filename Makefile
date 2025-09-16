@@ -111,6 +111,13 @@ backup: check-env
 	tar -czf backups/$$BACKUP_FILE -C volumes . && \
 	echo "Backup created: docker/backups/$$BACKUP_FILE"
 
+# New: Initialize DBs
+.PHONY: init-db
+init-db: check-env
+	@echo "Initializing databases..."
+	@cd docker && $(DOCKER_COMPOSE) exec -T postgres psql -U $$(grep POSTGRES_USER .env | cut -d '=' -f2) -d postgres -c "SELECT 'CREATE DATABASE llm_n8n' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'llm_n8n')\gexec"
+	@echo "Database llm_n8n ensured."
+
 .PHONY: restore
 restore: check-env
 	@echo "Restoring from backup..."
