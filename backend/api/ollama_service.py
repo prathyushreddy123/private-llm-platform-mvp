@@ -514,10 +514,11 @@ async def example_usage():
         
         # Stream response
         print("\nStreaming response:")
-        async for chunk in service.generate(
+        stream_generator = await service.generate(
             "Write a short poem about artificial intelligence.",
             stream=True
-        ):
+        )
+        async for chunk in stream_generator:
             if "response" in chunk:
                 print(chunk["response"], end="", flush=True)
         print("\n")
