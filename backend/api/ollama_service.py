@@ -38,7 +38,7 @@ class OllamaService:
         cache_ttl: int = int(os.environ.get("OLLAMA_CACHE_TTL", 3600)),
         default_model: str = os.environ.get("OLLAMA_DEFAULT_MODEL", "mistral:7b"),
         fallback_model: str = os.environ.get("OLLAMA_FALLBACK_MODEL", "mistral:7b-instruct"),
-        request_timeout: int = int(os.environ.get("OLLAMA_REQUEST_TIMEOUT", 30)),
+        request_timeout: int = int(os.environ.get("OLLAMA_REQUEST_TIMEOUT", 120)),
         max_retries: int = int(os.environ.get("OLLAMA_MAX_RETRIES", 3)),
     ):
         """
@@ -494,6 +494,14 @@ async def example_usage():
         # List models
         models = await service.list_models()
         print(f"Available models: {models}")
+
+        # Warmup the model with a simple request
+        print("Warming up the model (this may take a minute)...")
+        try:
+            await service.generate("Hello", max_tokens=10)
+            print("Model warmed up successfully!")
+        except Exception as e:
+            print(f"Warmup failed: {str(e)}")
         
         # Generate text
         response = await service.generate(
