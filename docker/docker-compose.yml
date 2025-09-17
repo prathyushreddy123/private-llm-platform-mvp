@@ -37,6 +37,23 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
     restart: unless-stopped
 
+  init-n8n-db:
+    image: postgres:15-alpine
+    depends_on:
+      - postgres
+    entrypoint: >
+      sh -c "
+      until pg_isready -h postgres -U $$POSTGRES_USER; do
+        echo 'Waiting for postgres...';
+        sleep 2;
+      done;
+      psql -h postgres -U $$POSTGRES_USER -d postgres -c \"CREATE DATABASE llm_n8n\" || true;
+      "
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=changeme
+
+
   pgbouncer:
     image: bitnami/pgbouncer:latest
     container_name: llm-platform-pgbouncer
