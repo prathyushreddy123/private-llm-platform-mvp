@@ -18,6 +18,7 @@ sentence-transformers==2.2.2
 
 # Vector database
 chromadb==0.4.18
+datasets==2.14.5
 
 # LLM integration
 ollama==0.1.6
