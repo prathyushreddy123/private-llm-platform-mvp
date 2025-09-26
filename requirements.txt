@@ -23,7 +23,7 @@ datasets==2.14.5
 # LLM integration
 ollama==0.1.6
 transformers==4.35.2
-torch==2.1.1
+torch>=2.2.0
 accelerate==0.24.1
 httpx==0.25.2
 redis==5.0.1

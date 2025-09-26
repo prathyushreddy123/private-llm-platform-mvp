@@ -19,7 +19,7 @@ from datetime import datetime
 
 # Document processing
 import pypdf
-import docx
+from docx import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter, TokenTextSplitter
 from langchain.document_loaders import (
     PyPDFLoader,
