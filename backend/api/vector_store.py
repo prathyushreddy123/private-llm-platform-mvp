@@ -934,32 +934,26 @@ async def example_usage():
     print(f"Available collections: {collections}")
     
     # Create a collection
-    collection_name = "test_collection"
+    collection_name = "huggingface_collection"
     success = await vector_store.create_collection(
         name=collection_name,
-        metadata={"description": "Test collection"}
+        metadata={"description": "Hugging Face dataset collection"}
     )
     print(f"Created collection: {success}")
     
-    # Process a document
-    doc_path = "path/to/document.pdf"  # Replace with an actual path
-    doc_id = str(uuid.uuid4())
+    # Load data from Hugging Face dataset
+    result = await vector_store.load_from_huggingface(
+        dataset_name="prathyushreddy1991/legalMVP",  # Legal dataset
+        text_column="text",       # Column containing document text
+        collection_name=collection_name,
+        max_documents=100         # Limit for testing
+    )
+    print(f"Hugging Face dataset loading result: {result}")
     
-    # Skip document processing if file doesn't exist
-    if not Path(doc_path).exists():
-        print(f"Document {doc_path} doesn't exist, skipping processing")
-    else:
-        result = await vector_store.process_document(
-            doc_path=doc_path,
-            doc_id=doc_id,
-            collection_name=collection_name,
-            metadata={"source": "example"}
-        )
-        print(f"Document processing result: {result}")
-        
+    if result["success"]:
         # Perform semantic search
         search_results = await vector_store.semantic_search(
-            query="example query",
+            query="What are the key provisions of the Americans with Disabilities Act?",
             collection_name=collection_name,
             top_k=3
         )
@@ -967,18 +961,11 @@ async def example_usage():
         
         # Perform hybrid search
         hybrid_results = await vector_store.hybrid_search(
-            query="example query",
+            query="What are the key provisions of the Americans with Disabilities Act?",
             collection_name=collection_name,
             top_k=3
         )
         print(f"Hybrid search results: {hybrid_results}")
-        
-        # Delete the document
-        delete_success = await vector_store.delete_document(
-            doc_id=doc_id,
-            collection_name=collection_name
-        )
-        print(f"Deleted document: {delete_success}")
     
     # Backup the collection
     backup_path = await vector_store.backup_collection(collection_name)
@@ -993,29 +980,6 @@ async def example_usage():
         restore_success = await vector_store.restore_collection(backup_path)
         print(f"Restored collection: {restore_success}")
 
-async def example_huggingface_usage():
-    """Example of using Hugging Face datasets with VectorStore."""
-    vector_store = VectorStore(host="localhost", port=8000)
-    
-    # Load from Hugging Face dataset
-    result = await vector_store.load_from_huggingface(
-        dataset_name="your-username/your-dataset",  # Replace with your dataset name
-        text_column="text",  # Replace with your text column name
-        collection_name="huggingface_collection",
-        max_documents=100  # Limit to 100 documents for testing
-    )
-    print(f"Hugging Face dataset loading result: {result}")
-    
-    if result["success"]:
-        # Search the loaded documents
-        search_results = await vector_store.semantic_search(
-            query="your search query",
-            collection_name="huggingface_collection",
-            top_k=5
-        )
-        print(f"Search results: {search_results}")
-
 if __name__ == "__main__":
-    # Choose which example to run
-    # asyncio.run(example_usage())  # Original example
-    asyncio.run(example_huggingface_usage())  # Hugging Face example
+    # Run the example with Hugging Face dataset
+    asyncio.run(example_usage())
