@@ -66,17 +66,30 @@ class VectorStore:
         self.collection_limit = collection_limit
         self.backup_dir = Path(backup_dir)
         
-        # Initialize ChromaDB client with v2 API
-        self.client = chromadb.HttpClient(
-            host=host,
-            port=port,
-            settings=Settings(
-                chroma_client_auth_provider="token",
-                chroma_client_auth_credentials=os.environ.get("CHROMA_AUTH_TOKEN", ""),
-                chroma_api_impl="rest",
-                chroma_server_api_version="v2"
+        # Initialize ChromaDB client
+        try:
+            # Try with v2 API settings first
+            self.client = chromadb.HttpClient(
+                host=host,
+                port=port,
+                settings=Settings(
+                    chroma_client_auth_provider="token",
+                    chroma_client_auth_credentials=os.environ.get("CHROMA_AUTH_TOKEN", ""),
+                    chroma_api_impl="rest"
+                ),
+                api_version="v2"  # Use api_version parameter instead
             )
-        )
+        except TypeError:
+            # Fallback to standard initialization if api_version is not supported
+            self.client = chromadb.HttpClient(
+                host=host,
+                port=port,
+                settings=Settings(
+                    chroma_client_auth_provider="token",
+                    chroma_client_auth_credentials=os.environ.get("CHROMA_AUTH_TOKEN", "")
+                )
+            )
+            logger.warning("Using default API version. If you encounter API compatibility issues, please upgrade chromadb.")
         
         # Initialize embedding function
         self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
