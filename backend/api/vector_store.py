@@ -66,13 +66,15 @@ class VectorStore:
         self.collection_limit = collection_limit
         self.backup_dir = Path(backup_dir)
         
-        # Initialize ChromaDB client
+        # Initialize ChromaDB client with v2 API
         self.client = chromadb.HttpClient(
             host=host,
             port=port,
             settings=Settings(
                 chroma_client_auth_provider="token",
                 chroma_client_auth_credentials=os.environ.get("CHROMA_AUTH_TOKEN", ""),
+                chroma_api_impl="rest",
+                chroma_server_api_version="v2"
             )
         )
         
