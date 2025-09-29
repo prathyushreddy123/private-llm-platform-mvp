@@ -4,8 +4,8 @@ Example script demonstrating the RAG pipeline usage.
 
 import asyncio
 import logging
-from vector_store import VectorStore
-from rag_pipeline import RAGPipeline
+from backend.api.vector_store import VectorStore
+from backend.api.rag_pipeline import RAGPipeline
 
 # Configure logging
 logging.basicConfig(
