@@ -54,9 +54,10 @@ async def run_rag_example():
         vector_store=vector_store,
         llm_service="http://localhost:11434",
         config={
-            "model": "llama2",  # Change to your available Ollama model
+            "model": "mistral:7b-instruct",  # Using available Mistral instructed model
             "temperature": 0.7,
-            "top_k": 5
+            "top_k": 5,
+            "system_prompt": "You are a legal assistant that provides accurate information based on the given context. Answer questions clearly and concisely."
         }
     )
     
