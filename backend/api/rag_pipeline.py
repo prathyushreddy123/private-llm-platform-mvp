@@ -479,7 +479,8 @@ class RAGPipeline:
                     "temperature": self.generation_config["temperature"],
                     "top_p": self.generation_config["top_p"],
                     "num_predict": self.generation_config["max_tokens"]
-                }
+                },
+                "stream": False  # Disable streaming to get a single JSON response
             }
             
             # Call Ollama API
@@ -489,13 +490,21 @@ class RAGPipeline:
             )
             
             if response.status_code == 200:
-                result = response.json()
-                return {
-                    "response": result["message"]["content"],
-                    "model": self.generation_config["model"],
-                    "finish_reason": result.get("done", True),
-                    "raw_response": result
-                }
+                try:
+                    result = response.json()
+                    return {
+                        "response": result["message"]["content"],
+                        "model": self.generation_config["model"],
+                        "finish_reason": result.get("done", True),
+                        "raw_response": result
+                    }
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON response: {str(e)}")
+                    logger.debug(f"Raw response: {response.text[:500]}...")  # Log first 500 chars
+                    return {
+                        "response": "I'm sorry, I encountered an error parsing the response.",
+                        "error": f"JSON parsing error: {str(e)}"
+                    }
             else:
                 logger.error(f"LLM API error: {response.status_code} - {response.text}")
                 return {
