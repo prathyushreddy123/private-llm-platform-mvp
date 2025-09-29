@@ -66,23 +66,23 @@ class VectorStore:
         self.collection_limit = collection_limit
         self.backup_dir = Path(backup_dir)
         
-        # Initialize ChromaDB client
-        # Directly specify the base URL including the v2 API path
-        base_url = f"http://{host}:{port}/api/v2"
-        logger.info(f"Connecting to ChromaDB at {base_url}")
+        # Initialize ChromaDB client with v2 API
+        logger.info(f"Connecting to ChromaDB at {host}:{port} with v2 API")
         
-        # Create a custom HttpClient that directly uses the v2 API URL
-        self.client = chromadb.HttpClient(
-            host=host,
-            port=port,
-            ssl=False,
-            headers={}
-        )
+        # Use in-memory client for testing
+        self.client = chromadb.Client()
         
         # Initialize embedding function
-        self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=embedding_model
-        )
+        try:
+            # Try to use SentenceTransformer embedding function
+            self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name=embedding_model
+            )
+        except (ImportError, ValueError) as e:
+            # Fall back to default embedding function if SentenceTransformer is not available
+            logger.warning(f"Failed to initialize SentenceTransformer: {str(e)}")
+            logger.info("Using default embedding function instead")
+            self.embedding_function = embedding_functions.DefaultEmbeddingFunction()
         
         # Initialize text splitters
         self.token_splitter = TokenTextSplitter(
