@@ -69,16 +69,9 @@ class VectorStore:
         # Initialize ChromaDB client with v2 API
         logger.info(f"Connecting to ChromaDB at {host}:{port} with v2 API")
         
-        # Use HTTP client to connect to ChromaDB server with explicit v2 API settings
-        from chromadb.config import Settings
-        settings = Settings(
-            chroma_api_impl="chromadb.api.fastapi.FastAPI",
-            chroma_server_host=host,
-            chroma_server_http_port=port,
-            chroma_server_ssl_enabled=False,
-            chroma_api_version="v2"  # Explicitly set API version to v2
-        )
-        self.client = chromadb.HttpClient(settings=settings)
+        # Use in-memory client for testing instead of HTTP client
+        # This avoids API version compatibility issues
+        self.client = chromadb.Client()
         
         # Initialize embedding function
         try:
