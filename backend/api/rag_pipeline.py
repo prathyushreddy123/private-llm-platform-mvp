@@ -78,7 +78,7 @@ class RAGPipeline:
         }
         
         # Initialize HTTP client for LLM service
-        self.http_client = httpx.AsyncClient(timeout=60.0)
+        self.http_client = httpx.AsyncClient(timeout=300.0)
         
         # Load prompt templates
         self.templates = self._load_prompt_templates()
