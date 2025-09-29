@@ -69,8 +69,8 @@ class VectorStore:
         # Initialize ChromaDB client with v2 API
         logger.info(f"Connecting to ChromaDB at {host}:{port} with v2 API")
         
-        # Use in-memory client for testing
-        self.client = chromadb.Client()
+        # Use HTTP client to connect to ChromaDB server
+        self.client = chromadb.HttpClient(host=host, port=port)
         
         # Initialize embedding function
         try:
