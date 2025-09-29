@@ -27,6 +27,7 @@ torch>=2.2.0
 accelerate==0.24.1
 httpx==0.25.2
 redis==5.0.1
+sentence_transformers
 
 # Frontend
 streamlit==1.28.2

@@ -756,10 +756,14 @@ class VectorStore:
         Returns:
             Dict: Processing results
         """
+        start_time = time.time()
         try:
+            # Fix for PyArrow compatibility issue
+            import pyarrow
+            if not hasattr(pyarrow, 'PyExtensionType') and hasattr(pyarrow, 'ExtensionType'):
+                pyarrow.PyExtensionType = pyarrow.ExtensionType
+                
             import datasets
-            
-            start_time = time.time()
             
             # Load the dataset
             if progress_callback:
