@@ -33,6 +33,12 @@ import chromadb
 from chromadb.config import Settings
 from chromadb.utils import embedding_functions
 
+# Explicitly import sentence_transformers to ensure it's available
+try:
+    import sentence_transformers
+except ImportError:
+    pass  # We'll handle this in the embedding function initialization
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -75,10 +81,22 @@ class VectorStore:
         
         # Initialize embedding function
         try:
-            # Try to use SentenceTransformer embedding function
-            self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name=embedding_model
-            )
+            # Try to directly create a SentenceTransformer model first
+            from sentence_transformers import SentenceTransformer
+            logger.info(f"Successfully imported sentence_transformers module")
+            
+            # Create a custom embedding function using the SentenceTransformer model
+            model = SentenceTransformer("all-MiniLM-L6-v2")
+            logger.info(f"Successfully loaded SentenceTransformer model: {embedding_model}")
+            
+            # Create a custom embedding function
+            def embed_func(texts):
+                embeddings = model.encode(texts)
+                return embeddings.tolist()
+            
+            # Use the custom function
+            self.embedding_function = embed_func
+            logger.info("Using custom SentenceTransformer embedding function")
         except (ImportError, ValueError) as e:
             # Fall back to default embedding function if SentenceTransformer is not available
             logger.warning(f"Failed to initialize SentenceTransformer: {str(e)}")
