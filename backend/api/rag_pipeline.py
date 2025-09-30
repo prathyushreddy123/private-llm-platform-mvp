@@ -106,15 +106,22 @@ class RAGPipeline:
             """,
             
             "legal": """
-                You are a legal assistant analyzing documents. Use only the provided context to answer the question.
-                If the information is not in the context, say "I don't have enough information to answer this question."
+                You are a legal research assistant. Use ONLY the provided context to answer the question.
+                Do not use outside knowledge.
+                If the context does not contain enough information, respond exactly with: "Not found in context."
                 
                 Context:
                 {context}
                 
                 Question: {query}
                 
-                Provide a concise, accurate answer with citations to the relevant parts of the context.
+                Instructions for your answer:
+                - Provide the response in clear bullet points.
+                - Each bullet point must end with the citation of the supporting source (e.g., [Source 3]).
+                - Do not repeat irrelevant context.
+                - Do not speculate outside the provided context.
+                - Do not say "based on the context" or similar phrases - just answer directly.
+                - If you can't answer from the context, just say "Not found in context."
                 
                 Answer:
             """,
