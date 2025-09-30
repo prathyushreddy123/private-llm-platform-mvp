@@ -36,8 +36,8 @@ class OllamaService:
         self,
         base_url: str = os.environ.get("OLLAMA_API_URL", "http://localhost:11434"),
         cache_ttl: int = int(os.environ.get("OLLAMA_CACHE_TTL", 3600)),
-        default_model: str = os.environ.get("OLLAMA_DEFAULT_MODEL", "mistral:7b"),
-        fallback_model: str = os.environ.get("OLLAMA_FALLBACK_MODEL", "mistral:7b-instruct"),
+        default_model: str = os.environ.get("OLLAMA_DEFAULT_MODEL", "llama2:7b"),
+        fallback_model: str = os.environ.get("OLLAMA_FALLBACK_MODEL", "llama2"),
         request_timeout: int = int(os.environ.get("OLLAMA_REQUEST_TIMEOUT", 120)),
         max_retries: int = int(os.environ.get("OLLAMA_MAX_RETRIES", 3)),
     ):
