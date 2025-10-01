@@ -8,6 +8,7 @@ services:
       - /mnt/legal/data/ollama:/root/.ollama
     ports:
       - "11434:11434"
+    runtime: nvidia
     restart: unless-stopped
 
   chroma:
