@@ -1,0 +1,64 @@
+{
+  "name": "n8n-nodes-ollama",
+  "version": "0.1.0",
+  "description": "Custom n8n nodes for LLM operations with Ollama and vector databases",
+  "keywords": [
+    "n8n",
+    "n8n-community-node-package",
+    "ollama",
+    "llm",
+    "rag",
+    "vector-database",
+    "chromadb"
+  ],
+  "license": "MIT",
+  "homepage": "",
+  "author": {
+    "name": "LegalMVP Team",
+    "email": ""
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && ncc build",
+    "dev": "tsc --watch",
+    "format": "prettier --write \"**/*.ts\"",
+    "lint": "eslint --ext .ts --max-warnings=0 src",
+    "lintfix": "eslint --ext .ts --fix src",
+    "prepublishOnly": "npm run build",
+    "ncc-build": "ncc build src/index.ts -o dist"
+  },
+  "files": [
+    "dist/nodes/**/*",
+    "dist/credentials/**/*"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [],
+    "nodes": [
+      "dist/nodes/OllamaChat.node.js",
+      "dist/nodes/VectorStore.node.js",
+      "dist/nodes/DocumentChunker.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "@types/node": "^18.16.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.1",
+    "@typescript-eslint/parser": "^5.59.1",
+    "@vercel/ncc": "^0.36.1",
+    "eslint": "^8.39.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "n8n-workflow": "^1.0.0",
+    "prettier": "^2.8.8",
+    "typescript": "~5.0.4"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "n8n-core": "^1.0.0"
+  }
+}
