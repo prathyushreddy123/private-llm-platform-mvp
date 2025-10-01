@@ -1,0 +1,360 @@
+{
+  "name": "Query Processing Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "query",
+        "options": {
+          "responseMode": "responseNode"
+        },
+        "authentication": "headerAuth",
+        "headerAuthName": "x-api-key",
+        "headerAuthValue": "={{$env.QUERY_API_KEY}}",
+        "responseContentType": "application/json"
+      },
+      "id": "webhook-trigger",
+      "name": "Query Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "rag-query"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Query validation and sanitization\nconst query = $input.item.json.query;\nconst collection = $input.item.json.collection || 'default';\n\n// Check if query exists\nif (!query) {\n  throw new Error('Query parameter is required');\n}\n\n// Sanitize query (remove excessive whitespace, etc.)\nconst sanitizedQuery = query.trim().replace(/\\s+/g, ' ');\n\n// Check query length\nif (sanitizedQuery.length < 3) {\n  throw new Error('Query is too short');\n}\n\nif (sanitizedQuery.length > 500) {\n  throw new Error('Query is too long (max 500 characters)');\n}\n\n// Check for potential harmful content (basic check)\nconst potentiallyHarmful = /\\b(rm -rf|drop table|delete from|;--|\\bexec\\b|\\beval\\b|<script>)/i.test(sanitizedQuery);\nif (potentiallyHarmful) {\n  throw new Error('Query contains potentially harmful content');\n}\n\n// Generate a query ID for tracking\nconst queryId = `query_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;\n\n// Return sanitized query\nreturn {\n  json: {\n    query_id: queryId,\n    query: sanitizedQuery,\n    collection: collection,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "query-validation",
+      "name": "Query Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionName": "getCachedResponse",
+        "jsCode": "// Cache checking function\nasync function getCachedResponse(items) {\n  const item = items[0];\n  const query = item.json.query;\n  const collection = item.json.collection;\n  \n  // Generate cache key\n  const cacheKey = `query_${collection}_${query.toLowerCase().replace(/\\s+/g, '_')}`;\n  \n  // In a real implementation, this would check Redis\n  // For this template, we'll simulate a cache check\n  const cacheHit = false;\n  \n  if (cacheHit) {\n    // Return cached response\n    return [\n      {\n        json: {\n          ...item.json,\n          cached: true,\n          context: ['Cached context 1', 'Cached context 2'],\n          response: 'This is a cached response',\n          confidence_score: 0.95,\n          processing_time: 0.05\n        }\n      }\n    ];\n  } else {\n    // No cache hit, continue processing\n    return items;\n  }\n}"
+      },
+      "id": "cache-check",
+      "name": "Cache Check",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $input.item.json.cached }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "is-cached",
+      "name": "Is Cached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.CHROMA_API_URL}}/api/v1/collections/{{$input.item.json.collection}}/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query_texts",
+              "value": "={{ [$input.item.json.query] }}"
+            },
+            {
+              "name": "n_results",
+              "value": 5
+            },
+            {
+              "name": "include",
+              "value": "=[\"metadatas\", \"documents\", \"distances\"]"
+            }
+          ]
+        }
+      },
+      "id": "vector-search",
+      "name": "Vector Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Context ranking and optimization\nconst searchResults = $input.item.json;\nconst query = $input.item.json.query;\n\n// Extract results from ChromaDB response\nlet results = [];\n\nif (searchResults.ids && searchResults.ids[0]) {\n  // Process each result\n  for (let i = 0; i < searchResults.ids[0].length; i++) {\n    results.push({\n      id: searchResults.ids[0][i],\n      content: searchResults.documents[0][i],\n      metadata: searchResults.metadatas[0][i],\n      distance: searchResults.distances[0][i],\n      similarity: 1.0 - Math.min(searchResults.distances[0][i], 1.0)\n    });\n  }\n}\n\n// Re-rank results based on multiple factors\nresults = results.map(result => {\n  // Calculate keyword overlap score\n  const queryTerms = query.toLowerCase().split(' ');\n  const contentTerms = result.content.toLowerCase().split(' ');\n  const matchingTerms = queryTerms.filter(term => contentTerms.includes(term));\n  const keywordScore = matchingTerms.length / queryTerms.length;\n  \n  // Calculate position score\n  let positionScore = 0;\n  for (const term of queryTerms) {\n    const pos = result.content.toLowerCase().indexOf(term.toLowerCase());\n    if (pos >= 0) {\n      // Higher score if term appears earlier\n      positionScore += 1.0 - (pos / result.content.length);\n    }\n  }\n  positionScore = positionScore / queryTerms.length;\n  \n  // Combined relevance score\n  const relevanceScore = (\n    0.6 * result.similarity +\n    0.3 * keywordScore +\n    0.1 * positionScore\n  );\n  \n  return {\n    ...result,\n    keywordScore,\n    positionScore,\n    relevanceScore\n  };\n});\n\n// Sort by relevance score\nresults.sort((a, b) => b.relevanceScore - a.relevanceScore);\n\n// Limit to top results\nconst topResults = results.slice(0, 5);\n\n// Format context for prompt\nconst formattedContext = topResults.map((result, index) => {\n  return `[Source ${index + 1}: ${result.metadata.source || 'Unknown'}]\\n${result.content}\\n`;\n}).join('\\n');\n\nreturn {\n  json: {\n    ...searchResults,\n    query,\n    ranked_results: topResults,\n    formatted_context: formattedContext\n  }\n};"
+      },
+      "id": "context-ranking",
+      "name": "Context Ranking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prompt construction\nconst query = $input.item.json.query;\nconst context = $input.item.json.formatted_context;\n\n// Legal domain prompt template\nconst promptTemplate = `\nYou are a legal research assistant. Use ONLY the provided context to answer the question.\nDo not use outside knowledge.\nIf the context does not contain enough information, respond exactly with: \"Not found in context.\"\n\nContext:\n${context}\n\nQuestion: ${query}\n\nInstructions for your answer:\n- Provide the response in clear bullet points.\n- Each bullet point must end with the citation of the supporting source (e.g., [Source 3]).\n- Do not repeat irrelevant context.\n- Do not speculate outside the provided context.\n- Do not say \"based on the context\" or similar phrases - just answer directly.\n- If you can't answer from the context, just say \"Not found in context.\"\n\nAnswer:\n`;\n\nreturn {\n  json: {\n    ...($input.item.json),\n    prompt: promptTemplate\n  }\n};"
+      },
+      "id": "prompt-construction",
+      "name": "Prompt Construction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.OLLAMA_API_URL}}/api/chat",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama2:7b"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\": \"system\", \"content\": \"You are a legal assistant that provides accurate information based on the given context.\"}, {\"role\": \"user\", \"content\": $input.item.json.prompt}]"
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "options",
+              "value": "{\"temperature\": 0.7, \"top_p\": 0.9, \"num_predict\": 500}"
+            }
+          ]
+        }
+      },
+      "id": "llm-call",
+      "name": "LLM Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1650,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Response validation\nconst response = $input.item.json.message.content;\nconst query = $input.item.json.query;\nconst context = $input.item.json.formatted_context;\nconst rankedResults = $input.item.json.ranked_results;\n\n// Calculate confidence score\nlet confidenceScore = 0.8; // Default confidence\n\n// Check response length\nif (response.length < 10) {\n  confidenceScore *= 0.5;\n}\n\n// Check for \"Not found in context\"\nif (response.includes(\"Not found in context\")) {\n  confidenceScore = 0.1;\n}\n\n// Check source support\nconst contextText = rankedResults.map(r => r.content).join(' ');\nconst responseLines = response.split('\\n').filter(line => line.trim().length > 0);\n\n// Count supported lines\nlet supportedLines = 0;\nfor (const line of responseLines) {\n  // Skip very short lines\n  if (line.length < 15) continue;\n  \n  // Check if key parts of the line appear in context\n  const words = line.toLowerCase().split(' ');\n  const keyWords = words.filter(w => w.length > 4 && !['about', 'would', 'should', 'could'].includes(w));\n  \n  if (keyWords.length > 0) {\n    const matches = keyWords.filter(word => contextText.toLowerCase().includes(word));\n    const supportScore = matches.length / keyWords.length;\n    \n    if (supportScore >= 0.5) {\n      supportedLines++;\n    }\n  }\n}\n\n// Calculate source support score\nconst sourceSupport = responseLines.length > 0 ? supportedLines / responseLines.length : 0;\n\n// Calculate query relevance\nconst queryTerms = query.toLowerCase().split(' ');\nconst responseTerms = response.toLowerCase().split(' ');\nconst queryOverlap = queryTerms.filter(term => responseTerms.includes(term)).length / queryTerms.length;\n\nif (queryOverlap < 0.3) {\n  confidenceScore *= 0.8;\n}\n\n// Final confidence calculation\nconfidenceScore = confidenceScore * (0.7 + 0.3 * sourceSupport);\n\n// Extract citations\nconst citationRegex = /\\[Source (\\d+)\\]/g;\nlet match;\nconst citations = [];\n\nwhile ((match = citationRegex.exec(response)) !== null) {\n  const sourceNum = parseInt(match[1]) - 1;\n  if (sourceNum >= 0 && sourceNum < rankedResults.length) {\n    citations.push({\n      text: response.substring(Math.max(0, match.index - 50), match.index + match[0].length),\n      source: rankedResults[sourceNum].metadata.source || 'Unknown',\n      sourceIndex: sourceNum\n    });\n  }\n}\n\n// Cache the result for future queries\n// In a real implementation, this would store in Redis\n\nreturn {\n  json: {\n    query_id: $input.item.json.query_id,\n    query: query,\n    response: response,\n    confidence_score: confidenceScore,\n    citations: citations,\n    context_used: rankedResults.map(r => ({\n      content: r.content,\n      metadata: r.metadata,\n      relevance: r.relevanceScore\n    })),\n    processing_time: (Date.now() - new Date($input.item.json.timestamp).getTime()) / 1000\n  }\n};"
+      },
+      "id": "response-validation",
+      "name": "Response Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "functionName": "logAnalytics",
+        "jsCode": "// Analytics logging function\nasync function logAnalytics(items) {\n  const item = items[0];\n  \n  // Extract key metrics\n  const {\n    query_id,\n    query,\n    confidence_score,\n    processing_time,\n    context_used\n  } = item.json;\n  \n  // In a real implementation, this would log to a database\n  console.log(`Analytics for query ${query_id}:`);\n  console.log(`- Query: ${query}`);\n  console.log(`- Confidence: ${confidence_score}`);\n  console.log(`- Processing time: ${processing_time}s`);\n  console.log(`- Context chunks used: ${context_used.length}`);\n  \n  // Return the items unchanged\n  return items;\n}"
+      },
+      "id": "analytics-logging",
+      "name": "Analytics Logging",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWithType": "json",
+        "responseBody": "={{ $input.item.json }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [
+        [
+          {
+            "node": "query-validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "query-validation": {
+      "main": [
+        [
+          {
+            "node": "cache-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cache-check": {
+      "main": [
+        [
+          {
+            "node": "is-cached",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is-cached": {
+      "main": [
+        [
+          {
+            "node": "analytics-logging",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "vector-search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "vector-search": {
+      "main": [
+        [
+          {
+            "node": "context-ranking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "context-ranking": {
+      "main": [
+        [
+          {
+            "node": "prompt-construction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prompt-construction": {
+      "main": [
+        [
+          {
+            "node": "llm-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "llm-call": {
+      "main": [
+        [
+          {
+            "node": "response-validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "response-validation": {
+      "main": [
+        [
+          {
+            "node": "analytics-logging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "analytics-logging": {
+      "main": [
+        [
+          {
+            "node": "webhook-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler"
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 1,
+  "tags": ["rag", "query-processing"]
+}

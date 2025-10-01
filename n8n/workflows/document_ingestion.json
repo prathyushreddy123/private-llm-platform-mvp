@@ -1,0 +1,427 @@
+{
+  "name": "Document Ingestion Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-ingestion",
+        "options": {
+          "binaryData": true,
+          "responseMode": "responseNode",
+          "responseData": "firstEntryJson"
+        },
+        "authentication": "headerAuth",
+        "headerAuthName": "x-api-key",
+        "headerAuthValue": "={{$env.DOCUMENT_INGESTION_API_KEY}}",
+        "responseContentType": "application/json",
+        "responsePropertyName": "data",
+        "responseHeaders": {
+          "entries": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "responseCode": 200
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "document-ingestion"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $binary.data.mimeType }}",
+              "operation": "contains",
+              "value2": "pdf"
+            }
+          ]
+        }
+      },
+      "id": "file-type-router",
+      "name": "File Type Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PDF Parser with OCR fallback\nconst binaryData = $input.item.binary.data;\nconst fileName = binaryData.fileName;\nconst mimeType = binaryData.mimeType;\nconst fileSize = binaryData.fileSize;\n\n// Check file size (max 10MB)\nif (fileSize > 10 * 1024 * 1024) {\n  throw new Error('File size exceeds 10MB limit');\n}\n\n// Log processing start\nconsole.log(`Processing PDF file: ${fileName}`);\n\ntry {\n  // In a real implementation, this would use PyPDF2 or similar\n  // For this template, we'll simulate the extraction\n  const extractedText = `Simulated text extraction from ${fileName}`;\n  \n  // Return the extracted text and metadata\n  return {\n    json: {\n      success: true,\n      text: extractedText,\n      metadata: {\n        source: fileName,\n        mimeType: mimeType,\n        timestamp: new Date().toISOString(),\n        pageCount: 10, // Simulated page count\n        fileSize: fileSize\n      }\n    }\n  };\n} catch (error) {\n  console.log(`Error processing PDF: ${error.message}`);\n  \n  // Fallback to OCR (simulated)\n  console.log('Falling back to OCR processing');\n  \n  return {\n    json: {\n      success: true,\n      text: `OCR extracted text from ${fileName}`,\n      metadata: {\n        source: fileName,\n        mimeType: mimeType,\n        timestamp: new Date().toISOString(),\n        pageCount: 10, // Simulated\n        fileSize: fileSize,\n        processedWithOcr: true\n      }\n    }\n  };\n}"
+      },
+      "id": "pdf-parser",
+      "name": "PDF Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// DOCX Parser\nconst binaryData = $input.item.binary.data;\nconst fileName = binaryData.fileName;\nconst mimeType = binaryData.mimeType;\nconst fileSize = binaryData.fileSize;\n\n// Check file size\nif (fileSize > 10 * 1024 * 1024) {\n  throw new Error('File size exceeds 10MB limit');\n}\n\n// Log processing start\nconsole.log(`Processing DOCX file: ${fileName}`);\n\ntry {\n  // In a real implementation, this would use python-docx\n  // For this template, we'll simulate the extraction\n  const extractedText = `Simulated text extraction from ${fileName}`;\n  \n  // Return the extracted text and metadata\n  return {\n    json: {\n      success: true,\n      text: extractedText,\n      metadata: {\n        source: fileName,\n        mimeType: mimeType,\n        timestamp: new Date().toISOString(),\n        fileSize: fileSize\n      }\n    }\n  };\n} catch (error) {\n  console.log(`Error processing DOCX: ${error.message}`);\n  return {\n    json: {\n      success: false,\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "docx-parser",
+      "name": "DOCX Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// TXT Parser\nconst binaryData = $input.item.binary.data;\nconst fileName = binaryData.fileName;\nconst mimeType = binaryData.mimeType;\nconst fileSize = binaryData.fileSize;\n\n// Check file size\nif (fileSize > 10 * 1024 * 1024) {\n  throw new Error('File size exceeds 10MB limit');\n}\n\n// Log processing start\nconsole.log(`Processing TXT file: ${fileName}`);\n\ntry {\n  // For TXT files, we can directly use the content\n  // In a real implementation, this would decode the binary data\n  const extractedText = `Simulated text extraction from ${fileName}`;\n  \n  // Return the extracted text and metadata\n  return {\n    json: {\n      success: true,\n      text: extractedText,\n      metadata: {\n        source: fileName,\n        mimeType: mimeType,\n        timestamp: new Date().toISOString(),\n        fileSize: fileSize\n      }\n    }\n  };\n} catch (error) {\n  console.log(`Error processing TXT: ${error.message}`);\n  return {\n    json: {\n      success: false,\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "txt-parser",
+      "name": "TXT Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        650,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Text Chunking\nconst text = $input.item.json.text;\nconst metadata = $input.item.json.metadata;\n\n// Configuration\nconst chunkSize = 100; // tokens (approximate)\nconst chunkOverlap = 0.5; // 50% overlap\n\n// Simple chunking function (in a real implementation, this would use a proper tokenizer)\nfunction chunkText(text, chunkSize, overlap) {\n  // Simple approximation: 1 token ≈ 4 characters\n  const charSize = chunkSize * 4;\n  const overlapSize = Math.floor(charSize * overlap);\n  const chunks = [];\n  \n  let startPos = 0;\n  while (startPos < text.length) {\n    const endPos = Math.min(startPos + charSize, text.length);\n    chunks.push(text.substring(startPos, endPos));\n    startPos = endPos - overlapSize;\n  }\n  \n  return chunks;\n}\n\n// Process the text\nconst chunks = chunkText(text, chunkSize, chunkOverlap);\n\n// Create items for each chunk with metadata\nconst items = chunks.map((chunk, index) => {\n  return {\n    json: {\n      chunk_id: `${metadata.source.replace(/\\.[^/.]+$/, '')}_chunk_${index}`,\n      content: chunk,\n      metadata: {\n        ...metadata,\n        chunk_index: index,\n        chunk_total: chunks.length,\n        chunk_strategy: 'token',\n        chunk_size: chunkSize,\n        chunk_overlap: chunkOverlap\n      }\n    }\n  };\n});\n\nreturn items;"
+      },
+      "id": "text-chunking",
+      "name": "Text Chunking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.RAG_API_URL}}/api/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.RAG_API_KEY}}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": true,
+            "batchSize": 10,
+            "batchInterval": 1000
+          }
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "texts",
+              "value": "={{ [$input.item.json.content] }}"
+            },
+            {
+              "name": "model",
+              "value": "all-MiniLM-L6-v2"
+            }
+          ]
+        }
+      },
+      "id": "embedding-generation",
+      "name": "Embedding Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "url": "={{$env.CHROMA_API_URL}}/api/collections/{{$env.CHROMA_COLLECTION}}/add",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "={{ [$input.item.json.chunk_id] }}"
+            },
+            {
+              "name": "embeddings",
+              "value": "={{ [$input.item.json.embedding] }}"
+            },
+            {
+              "name": "documents",
+              "value": "={{ [$input.item.json.content] }}"
+            },
+            {
+              "name": "metadatas",
+              "value": "={{ [$input.item.json.metadata] }}"
+            }
+          ]
+        }
+      },
+      "id": "chromadb-storage",
+      "name": "ChromaDB Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1250,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $input.item.json.success }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "success-check",
+      "name": "Success Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.SLACK_CHANNEL_ID}}",
+        "text": "=Document Processing Success\\n\\nFile: {{$node[\"webhook-trigger\"].json[\"binary\"][\"data\"][\"fileName\"]}}\\nChunks: {{$node[\"text-chunking\"].outputItems.length}}\\nTimestamp: {{$now.format(\"YYYY-MM-DD HH:mm:ss\")}}",
+        "additionalFields": {}
+      },
+      "id": "slack-success",
+      "name": "Slack Success Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.SLACK_CHANNEL_ID}}",
+        "text": "=⚠️ Document Processing Error\\n\\nFile: {{$node[\"webhook-trigger\"].json[\"binary\"][\"data\"][\"fileName\"]}}\\nError: {{$input.item.json.error}}\\nTimestamp: {{$now.format(\"YYYY-MM-DD HH:mm:ss\")}}",
+        "additionalFields": {}
+      },
+      "id": "slack-error",
+      "name": "Slack Error Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWithType": "json",
+        "responseBody": "={{ {success: true, message: \"Document processed successfully\", document_id: $input.item.json.metadata.source, chunks_processed: $node[\"text-chunking\"].outputItems.length} }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [
+        [
+          {
+            "node": "file-type-router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "file-type-router": {
+      "main": [
+        [
+          {
+            "node": "pdf-parser",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "docx-parser",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "txt-parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pdf-parser": {
+      "main": [
+        [
+          {
+            "node": "text-chunking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "docx-parser": {
+      "main": [
+        [
+          {
+            "node": "text-chunking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "txt-parser": {
+      "main": [
+        [
+          {
+            "node": "text-chunking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "text-chunking": {
+      "main": [
+        [
+          {
+            "node": "embedding-generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "embedding-generation": {
+      "main": [
+        [
+          {
+            "node": "chromadb-storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "chromadb-storage": {
+      "main": [
+        [
+          {
+            "node": "success-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "success-check": {
+      "main": [
+        [
+          {
+            "node": "slack-success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "slack-error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "slack-success": {
+      "main": [
+        [
+          {
+            "node": "webhook-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "slack-error": {
+      "main": [
+        [
+          {
+            "node": "webhook-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler"
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 1,
+  "tags": ["document-processing", "rag"]
+}

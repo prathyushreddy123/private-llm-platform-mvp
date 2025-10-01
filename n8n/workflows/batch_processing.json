@@ -1,0 +1,432 @@
+{
+  "name": "Batch Document Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "minutesInterval": 1440
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "folder",
+        "operation": "list",
+        "folderId": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}",
+        "options": {
+          "fields": [
+            "id",
+            "name",
+            "mimeType",
+            "modifiedTime"
+          ],
+          "queryFilters": {
+            "filters": [
+              {
+                "name": "modifiedTime",
+                "operator": ">",
+                "value": "={{ $now.minus({days: 1}).format() }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "google-drive",
+      "name": "Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "1",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json[\"mimeType\"] }}",
+              "operation": "contains",
+              "value2": "folder"
+            }
+          ]
+        }
+      },
+      "id": "is-folder",
+      "name": "Is Folder?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "operation": "download",
+        "fileId": "={{ $json[\"id\"] }}"
+      },
+      "id": "download-file",
+      "name": "Download File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [
+        850,
+        400
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "1",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.RAG_API_URL }}/document-ingestion",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          },
+          "batching": {
+            "batch": true,
+            "batchSize": 1,
+            "batchInterval": 2000
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.DOCUMENT_INGESTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ $binary.data.fileName }}",
+              "contentType": "={{ $binary.data.mimeType }}",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "metadata",
+              "value": "={{ JSON.stringify({source: \"google_drive\", folder: $json.parents[0], modified: $json.modifiedTime}) }}"
+            }
+          ]
+        }
+      },
+      "id": "process-document",
+      "name": "Process Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "folder",
+        "operation": "list",
+        "folderId": "={{ $json[\"id\"] }}",
+        "options": {
+          "fields": [
+            "id",
+            "name",
+            "mimeType",
+            "modifiedTime"
+          ]
+        }
+      },
+      "id": "list-subfolder",
+      "name": "List Subfolder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [
+        850,
+        200
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "1",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Queue management\n// In a real implementation, this would use a proper queue system\n\n// Get all files to process\nconst allFiles = $input.all.map(item => item.json);\n\n// Create a processing queue\nconst queue = [];\nlet totalSize = 0;\n\nfor (const file of allFiles) {\n  // Skip folders\n  if (file.mimeType && file.mimeType.includes('folder')) {\n    continue;\n  }\n  \n  // Skip unsupported file types\n  const supportedTypes = ['pdf', 'doc', 'docx', 'txt', 'md'];\n  const fileExt = file.name.split('.').pop().toLowerCase();\n  if (!supportedTypes.includes(fileExt)) {\n    continue;\n  }\n  \n  // Add to queue\n  queue.push({\n    json: {\n      ...file,\n      queuePosition: queue.length + 1\n    }\n  });\n  \n  // Track total size\n  totalSize += file.size || 0;\n}\n\n// Create a summary\nconst summary = {\n  totalFiles: queue.length,\n  totalSize: totalSize,\n  estimatedProcessingTime: queue.length * 2, // Rough estimate: 2 minutes per file\n  queuedAt: new Date().toISOString()\n};\n\n// Return the queue\nif (queue.length > 0) {\n  // Add summary to the first item\n  queue[0].json.summary = summary;\n  return queue;\n} else {\n  // Return an empty queue with summary\n  return [{\n    json: {\n      empty: true,\n      summary\n    }\n  }];\n}"
+      },
+      "id": "queue-management",
+      "name": "Queue Management",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.empty }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "is-empty-queue",
+      "name": "Is Empty Queue?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Progress tracking\nconst currentItem = $input.item.json;\nconst summary = currentItem.summary || $input.first.json.summary;\n\n// Calculate progress\nconst position = currentItem.queuePosition || 0;\nconst total = summary.totalFiles;\nconst progress = total > 0 ? Math.round((position / total) * 100) : 100;\n\n// Format progress message\nconst progressMessage = `Processing file ${position} of ${total} (${progress}%)`;\n\n// In a real implementation, this would update a dashboard or database\nconsole.log(progressMessage);\n\nreturn {\n  json: {\n    ...currentItem,\n    progress,\n    progressMessage\n  }\n};"
+      },
+      "id": "progress-tracking",
+      "name": "Progress Tracking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate summary report\nconst allResults = $input.all;\nconst summary = allResults[0].json.summary;\n\n// Count successes and failures\nlet successCount = 0;\nlet failureCount = 0;\n\nfor (const item of allResults) {\n  if (item.json.success) {\n    successCount++;\n  } else {\n    failureCount++;\n  }\n}\n\n// Generate report\nconst report = {\n  date: new Date().toISOString(),\n  totalProcessed: allResults.length,\n  successCount,\n  failureCount,\n  processingTimeMinutes: (Date.now() - new Date(summary.queuedAt).getTime()) / 60000,\n  details: allResults.map(item => ({\n    name: item.json.name,\n    success: item.json.success || false,\n    error: item.json.error || null\n  }))\n};\n\n// Format HTML report\nconst htmlReport = `\n<h1>Batch Processing Report</h1>\n<p>Date: ${new Date().toLocaleString()}</p>\n<p>Total Files: ${report.totalProcessed}</p>\n<p>Successfully Processed: ${report.successCount}</p>\n<p>Failed: ${report.failureCount}</p>\n<p>Processing Time: ${report.processingTimeMinutes.toFixed(2)} minutes</p>\n\n<h2>File Details</h2>\n<table>\n  <tr>\n    <th>File</th>\n    <th>Status</th>\n  </tr>\n  ${report.details.map(d => `\n  <tr>\n    <td>${d.name}</td>\n    <td>${d.success ? '✅ Success' : '❌ Failed: ' + (d.error || 'Unknown error')}</td>\n  </tr>\n  `).join('')}\n</table>\n`;\n\nreturn {\n  json: {\n    ...report,\n    htmlReport\n  }\n};"
+      },
+      "id": "generate-report",
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.EMAIL_FROM }}",
+        "toEmail": "={{ $env.EMAIL_TO }}",
+        "subject": "Batch Document Processing Report - {{ $now.format('YYYY-MM-DD') }}",
+        "text": "=Please see the attached report for the latest batch document processing job.",
+        "html": "={{ $json.htmlReport }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        200
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "1",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.SLACK_CHANNEL_ID }}",
+        "text": "=📊 Batch Processing Complete\\n\\nProcessed: {{$json.totalProcessed}} files\\nSuccess: {{$json.successCount}}\\nFailures: {{$json.failureCount}}\\nTime: {{$json.processingTimeMinutes.toFixed(2)}} minutes\\n\\nSee email for full report.",
+        "additionalFields": {}
+      },
+      "id": "slack-notification",
+      "name": "Slack Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "schedule-trigger": {
+      "main": [
+        [
+          {
+            "node": "google-drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "google-drive": {
+      "main": [
+        [
+          {
+            "node": "is-folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is-folder": {
+      "main": [
+        [
+          {
+            "node": "list-subfolder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "download-file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "download-file": {
+      "main": [
+        [
+          {
+            "node": "process-document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "process-document": {
+      "main": [
+        [
+          {
+            "node": "progress-tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "list-subfolder": {
+      "main": [
+        [
+          {
+            "node": "queue-management",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "queue-management": {
+      "main": [
+        [
+          {
+            "node": "is-empty-queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is-empty-queue": {
+      "main": [
+        [
+          {
+            "node": "generate-report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "progress-tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "progress-tracking": {
+      "main": [
+        [
+          {
+            "node": "generate-report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generate-report": {
+      "main": [
+        [
+          {
+            "node": "send-email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "slack-notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler"
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 1,
+  "tags": ["document-processing", "batch-processing", "rag"]
+}
